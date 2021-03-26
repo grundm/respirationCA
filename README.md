@@ -12,7 +12,7 @@ Martin Grund<sup>1*</sup>, Esra Al<sup>1,2</sup>, Marc Pabst <sup>1</sup>, Alice
 
 ## Preprint
 
-Grund, M., Al, E., Pabst, M., Dabbagh, A., Stephani, T., Nierhaus, T., & Villringer, A. (2021). Respiration, heartbeat, and conscious tactile perception.
+Grund, M., Al, E., Pabst, M., Dabbagh, A., Stephani, T., Nierhaus, T., & Villringer, A. (2021). Respiration, heartbeat, and conscious tactile perception. bioRxiv 2021.03.22.436396. https://doi.org/10.1101/2021.03.22.436396
 
 ## Repository content
 
