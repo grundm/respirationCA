@@ -1,6 +1,6 @@
 # respirationCA
 
-Martin Grund<sup>1*</sup>, Esra Al<sup>1,2</sup>, Marc Pabst <sup>1</sup>, Alice Dabbagh <sup>1,3</sup>, Tilman Stephani <sup>1,4</sup>, Till Nierhaus<sup>1,5</sup>, and Arno Villringer<sup>1,2</sup>
+Martin Grund<sup>1*</sup>, Esra Al<sup>1,2</sup>, Marc Pabst <sup>1</sup>, Alice Dabbagh <sup>1,3</sup>, Tilman Stephani <sup>1,4</sup>, Till Nierhaus<sup>1,5</sup>, Michael Gaebler<sup>1,2</sup>, and Arno Villringer<sup>1,2</sup>
 
 <sup>1</sup>Department of Neurology, Max Planck Institute for Human Cognitive and Brain Sciences, 04103 Leipzig, Germany\
 <sup>2</sup>MindBrainBody Institute, Berlin School of Mind and Brain, Charité – Universitätsmedizin Berlin and Humboldt-Universität zu Berlin, 10099 Berlin, Germany\
@@ -12,7 +12,7 @@ Martin Grund<sup>1*</sup>, Esra Al<sup>1,2</sup>, Marc Pabst <sup>1</sup>, Alice
 
 ## Preprint
 
-Grund, M., Al, E., Pabst, M., Dabbagh, A., Stephani, T., Nierhaus, T., & Villringer, A. (2021). Respiration, heartbeat, and conscious tactile perception. bioRxiv 2021.03.22.436396. https://doi.org/10.1101/2021.03.22.436396
+Grund, M., Al, E., Pabst, M., Dabbagh, A., Stephani, T., Nierhaus, T., Gaebler, M., & Villringer, A. (2021). Respiration, heartbeat, and conscious tactile perception. bioRxiv 2021.03.22.436396. https://doi.org/10.1101/2021.03.22.436396
 
 ## Repository content
 
