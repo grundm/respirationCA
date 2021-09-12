@@ -3,7 +3,7 @@
 ###########################################################################
 
 # Author:         Martin Grund, Marc Pabst
-# Last update:    February 11, 2021
+# Last update:    August 6, 2021
 
 
 # Settings ---------------------------------------------------------------
@@ -25,17 +25,21 @@ library("cowplot")
 library("ggpubr")
 library("rstatix")
 library("tidyverse")
+library(circular)
 
 
 # Load data ---------------------------------------------------------------
 
-data_stims = readRDS(paste(data_dir, "resp_data_stims_martin_20210208.Rds", sep="/"))
+data_stims = readRDS(paste(data_dir, "resp_data_stims_martin_20210622.Rds", sep="/"))
 
 
 # Filter data -------------------------------------------------------------
 
-data_stims_valid <- subset(data_stims, resp_filter == 1 & HR_larger_FAR_filter == 1 & resp_cycle_filter == 1)
+data_stims_valid <- subset(data_stims, resp_filter == 1 & HR_larger_FAR_filter == 1 & resp_cycle_exhale_filter == 1)
+data_stims_valid$resp_cycle_t <- data_stims_valid$resp_cycle_t_exhale
+data_stims_valid$stim_degree <- data_stims_valid$stim_degree_exhale
 
+#data_stims_valid$resp_cycle_t <- data_stims_valid$resp_cycle_t_inhale
 
 # General statistics ------------------------------------------------------
 
@@ -227,4 +231,120 @@ resp_cycle_t_data %>%
   scale_fill_brewer(palette="Dark2")  +
   stat_pvalue_manual( stat_test, label = "p", tip.length = 0.01, hide.ns=T)+
   theme(legend.position="none")
+
+
+# Which phase is adapted --------------------------------------------------
+
+data_test <- subset(data_stims_valid,trial_type != 'FA')
+
+# Exhale duration
+mean_exhale_duration_exhale <- aggregate(exhale_duration_exhale ~ ID*trial_type, data_test, FUN = mean)
+
+boxplot(exhale_duration_exhale ~ trial_type, mean_exhale_duration_exhale)
+
+stat_test_exhale = mean_exhale_duration_exhale %>% 
+    t_test(exhale_duration_exhale ~ trial_type, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE) %>% 
+  add_xy_position(step.increase=0.3)
+
+mean_exhale_duration_exhale %>%
+  ggplot(aes(y=exhale_duration_exhale, x=trial_type, color=trial_type)) + 
+  geom_boxplot() +
+  theme_cowplot() + 
+  scale_fill_brewer(palette="Dark2")  +
+  stat_pvalue_manual( stat_test_exhale, label = "p", tip.length = 0.01, hide.ns=T)+
+  theme(legend.position="none")
+
+# Inhale duration
+mean_inhale_duration_exhale <- aggregate(inhale_duration_exhale ~ ID*trial_type, data_test, FUN = mean)
+
+boxplot(inhale_duration_exhale ~ trial_type, mean_inhale_duration_exhale)
+
+stat_test_inhale = mean_inhale_duration_exhale %>%
+  t_test(inhale_duration_exhale ~ trial_type, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE) %>% 
+  add_xy_position(step.increase=0.3)
+
+mean_inhale_duration_exhale %>%
+  ggplot(aes(y=inhale_duration_exhale, x=trial_type, color=trial_type)) + 
+  geom_boxplot() +
+  theme_cowplot() + 
+  scale_fill_brewer(palette="Dark2")  +
+  stat_pvalue_manual( stat_test_inhale, label = "p", tip.length = 0.01, hide.ns=T)+
+  theme(legend.position="none")
+
+p.adjust(c(stat_test_exhale$p, stat_test_inhale$p), 'fdr')
+
+# Test respiration cycle duration based on sum
+data_test$sum_in_ex_t_exhale <- data_test$exhale_duration_exhale + data_test$inhale_duration_exhale
+
+mean_sum_in_ex_t_exhale <- aggregate(sum_in_ex_t_exhale ~ ID*trial_type, data_test, FUN = mean)
+
+stat_test_sum_in_ex = mean_sum_in_ex_t_exhale %>%
+  t_test(sum_in_ex_t_exhale ~ trial_type, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE) %>% 
+  add_xy_position(step.increase=0.3)
+
+mean_sum_in_ex_t_exhale %>%
+  ggplot(aes(y=sum_in_ex_t_exhale, x=trial_type, color=trial_type)) + 
+  geom_boxplot() +
+  theme_cowplot() + 
+  scale_fill_brewer(palette="Dark2")  +
+  stat_pvalue_manual( stat_test_sum_in_ex, label = "p", tip.length = 0.01, hide.ns=T)+
+  theme(legend.position="none")
+
+# Test respiration cycle duration based on ratio
+data_test$ratio_in_ex_t_exhale <- data_test$exhale_duration_exhale/data_test$inhale_duration_exhale
+
+mean_ratio_in_ex_t_exhale <- aggregate(ratio_in_ex_t_exhale ~ ID*trial_type, data_test, FUN = mean)
+
+stat_test_ratio_in_ex = mean_ratio_in_ex_t_exhale %>%
+  t_test(ratio_in_ex_t_exhale ~ trial_type, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE) %>% 
+  add_xy_position(step.increase=0.3)
+
+mean_ratio_in_ex_t_exhale %>%
+  ggplot(aes(y=ratio_in_ex_t_exhale, x=trial_type, color=trial_type)) + 
+  geom_boxplot() +
+  theme_cowplot() + 
+  scale_fill_brewer(palette="Dark2")  +
+  stat_pvalue_manual( stat_test_ratio_in_ex, label = "p", tip.length = 0.01, hide.ns=T)+
+  theme(legend.position="none")
+
+
+# ANOVA -------------------------------------------------------------------
+
+# Requires mean_exhale_duration_exhale & mean_inhale_duration_exhale from previous section
+
+mean_ex_in_t_exhale <- mean_exhale_duration_exhale
+
+mean_ex_in_t_exhale$inhale_duration_exhale <- NA
+
+for (i in c(1:nrow(mean_ex_in_t_exhale))) {
+  mean_ex_in_t_exhale$inhale_duration_exhale[i] <- mean_inhale_duration_exhale$inhale_duration_exhale[mean_inhale_duration_exhale$ID == mean_ex_in_t_exhale$ID[i] & mean_inhale_duration_exhale$trial_type == mean_ex_in_t_exhale$trial_type[i]]
+}
+
+colnames(mean_ex_in_t_exhale) <- c('ID', 'trial_type', 'exhale', 'inhale')
+
+mean_ex_in_t <- pivot_longer(mean_ex_in_t_exhale,
+                             cols = c(exhale, inhale), 
+                             names_to = 'phase', values_to = 'duration')
+
+mean_ex_in_t$trial_type <- as.factor(mean_ex_in_t$trial_type)
+mean_ex_in_t$phase <- as.factor(mean_ex_in_t$phase)
+
+
+library("afex")
+
+fit_all <- aov_ez("ID","duration", mean_ex_in_t, within=c("trial_type", "phase"))
+fit_all # to see corrected degrees of freedom 
+summary(fit_all) # see epsilon values
+
+m1 <- aov(duration ~ (trial_type*phase) + Error(ID/(trial_type*phase)), mean_ex_in_t)
+summary(m1)
+TukeyHSD(m1)
+
+mean_ex_in_t %>%
+  ggplot(aes(y=duration, x=trial_type, fill=phase)) + 
+  geom_boxplot() +
+  ggtitle("Respiration phase duration") +
+  ylab("t in s") +
+  #xlab("Time since R-peak in ms")
+  theme_cowplot() 
 

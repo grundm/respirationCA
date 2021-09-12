@@ -5,7 +5,7 @@ function [resp_cycles] = find_resp_cycle(resp_data_c)
 %
 %
 % Author:           Martin Grund
-% Last update:      February 4, 2021
+% Last update:      June 22, 2021
 
 %% Settings
 
@@ -38,16 +38,17 @@ for i = 1:length(resp_data_c)
         resp_cycles(i).srate(1,j) = srate_tmp;
         
         % Preprocess the respiratory trace (Power et al., 2020)
-        resp = filloutliers(resp_data_c(i).eeg(j).data,'linear','movmedian',srate_tmp); % remove outliers
+        resp_raw = resp_data_c(i).eeg(j).data;
+        resp = filloutliers(resp_raw,'linear','movmedian',srate_tmp); % remove outliers
         smoothresp = smoothdata(resp,'sgolay',srate_tmp); % apply some gentle smoothing
         zsmoothresp = zscore(smoothresp); % z-score
 
         %min_peak_prom = range(zsmoothresp)/devide_range;
         min_peak_prom = iqr(zsmoothresp)*frac_iqr;
 
-        % Find peaks (exhale onsets) and troughs (inhale onsets)
-        [~,resp_cycles(i).peaks(j).loc,~,~] = findpeaks(zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',min_peak_prom);
-        [~,resp_cycles(i).troughs(j).loc,~,~] = findpeaks(-zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',min_peak_prom);
+        % Find peaks (inhale onsets) and troughs (exhale onsets)
+        [~,resp_cycles(i).inhale_onsets(j).loc,~,~] = findpeaks(zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',min_peak_prom);
+        [~,resp_cycles(i).exhale_onsets(j).loc,~,~] = findpeaks(-zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',min_peak_prom);
         
     end         
     

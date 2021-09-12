@@ -1,4 +1,4 @@
-function [resp_data_c] = cut_resp_data(resp_data)
+function [resp_data_c] = cut_resp_data(resp_data,resp_channel_label)
 % function [resp_data_c] = cut_resp_data(resp_data) selects only channel 
 % for respiration data with a specified temporal window before the first 
 % trigger and after the last trigger. It also returns the number of events 
@@ -19,7 +19,6 @@ trigger_label = 'R128';
 % max(0.134 + dt$resp1_t[dt$trial==150] + 0.3 + dt$resp2_t[dt$trial==150])
 time_padding = [5 5];
 
-resp_channel_label = 'Resp';
 
 %% Split first file for ID21, because block #1 and #2 recorded together
 

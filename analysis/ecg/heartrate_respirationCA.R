@@ -1,7 +1,7 @@
 # respirationCA - Pre-/post-stimulus cardiac interval data for hits and misses -----
 
 # Author:         Martin Grund & Esra Al (based on Motyka et al., 2019, https://github.com/Pawel-Motyka/CCSomato/blob/master/_scripts/CCSomato_analysis_main.Rmd)
-# Last update:    March 11, 2021
+# Last update:    September 9, 2021
 
 
 
@@ -17,14 +17,15 @@ code_dir <- '~/ownCloud/promotion/experiment/respirationCA/code/respirationca'
 
 # Input data (output from ecg_stim2peak.R)
 data_file <- paste(data_dir, '/ecgdata_all.csv', sep = '')
+data_file <- paste(data_dir, '/ecgdata_all_twave_20210629.csv', sep = '')
 
 # load required packages
-require(ggplot2, warn.conflicts = FALSE, quietly=TRUE)
-require(scales, warn.conflicts = FALSE, quietly=TRUE)
-require(lme4, warn.conflicts = FALSE, quietly=TRUE)
-require(tidyr, warn.conflicts = FALSE, quietly=TRUE)
-require(afex, warn.conflicts = FALSE, quietly=TRUE)
-require(plyr, warn.conflicts = FALSE, quietly=TRUE)
+require(ggplot2)
+require(scales)
+require(lme4)
+require(plyr)
+require(tidyr)
+require(afex)
 
 # Load data
 data <- read.csv2(data_file)
@@ -58,9 +59,6 @@ data$resp_btn_filter <- as.integer(match(data$resp1_btn, resp1_btn, 0) & match(d
 # Combine response time & button filter
 data$resp_filter <- as.integer(data$resp_t_filter & data$resp_btn_filter)
 
-# Cue presentation time filter
-data$cue_t_filter <- as.integer( (data$onset_resp1 - data$onset_cue) > cue_t_min & (data$onset_resp1 - data$onset_cue) < cue_t_max)
-
 # Combine response time & button filter
 data$resp_filter <- as.integer(data$resp_t_filter & data$resp_btn_filter)
 
@@ -74,6 +72,16 @@ for (i in unique(data$ID)) {
     data$HR_larger_FAR_filter[data$ID == i & data$block == b] <- as.integer((HR-FAR)>margin_hit_FA)
   }
 }
+
+
+# Add trial type variable -------------------------------------------------
+
+data$trial_type <- NA
+
+data$trial_type[data$stim_type==0 & data$resp1==0] <- 'CR'
+data$trial_type[data$stim_type==0 & data$resp1==1] <- 'FA'
+data$trial_type[data$stim_type==1 & data$resp1==0] <- 'near_miss'
+data$trial_type[data$stim_type==1 & data$resp1==1] <- 'near_hit'
 
 
 # Interbeat intervals hit/miss/CR -----------------------------------------
@@ -128,6 +136,240 @@ for ( i in unique(data$ID )) {
 }
 
 
+
+# Correlate with HRV ------------------------------------------------------
+
+# Load data
+rmssd <- read.table(paste(data_dir, '/respirationCA_RMSSD.csv', sep = ''),
+                    sep = ',',
+                    col.names = c('ID', 'block', 'RMSSD'))
+
+# Average data
+mean_rmssd <- aggregate(RMSSD ~ ID, rmssd, FUN=mean)
+
+# Merge with RR-interval data
+data_ID$mean_rmssd <- numeric(nrow(data_ID))
+
+for (i in 1:nrow(data_ID)) {
+  data_ID$mean_rmssd[i] <- mean_rmssd$RMSSD[mean_rmssd$ID == data_ID$ID[i]]  
+}
+
+
+# Correlate HRV with orienting response across all trials -----------------
+
+data$ratio_T3_T2 <- data$RR_int_plus1/data$RR_int_zero_stimulus
+
+ratio_T3_T2_mean <- aggregate(ratio_T3_T2 ~ ID, subset(data, resp_filter == 1 & HR_larger_FAR_filter == 1 & trial_type != 'FA'), FUN=mean)
+
+# Merge with RR-interval data
+ratio_T3_T2_mean$mean_rmssd <- NA
+
+for (i in 1:nrow(ratio_T3_T2_mean)) {
+  ratio_T3_T2_mean$mean_rmssd[i] <- mean_rmssd$RMSSD[mean_rmssd$ID == ratio_T3_T2_mean$ID[i]]  
+}
+
+ratio_T3_T2_mean$mean_rmssd_log <- log(ratio_T3_T2_mean$mean_rmssd)
+
+ggscatter(ratio_T3_T2_mean, x = "ratio_T3_T2", y = "mean_rmssd_log",
+          add = 'reg.line',
+          cor.coef = TRUE,
+          cor.coef.coord = c(1,-2.3)) +
+          #cor.coef.coord = c(-0.003,0.095)) +
+  #stat_regline_equation(label.y = 0.99) +
+  stat_regline_equation(label.y = -2.4, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) +
+  #stat_regline_equation(label.y = 0.09, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) +
+  labs(x = "Heart slowing ratio 'Stimulus' to 'S+1' for all trials", y = "log(RMSSD)")
+
+
+# Correlate heart slowing and hit rate ------------------------------------
+
+# Heart slowing in correct rejections and near-threshold detection
+
+data_ID$ratio_T3_T2_CR <- data_ID$T3_CR/data_ID$T2_CR
+data_ID$HR <- HR_test$resp1
+
+ggscatter(data_ID, x = "ratio_T3_T2_CR", y = "HR",
+          add = 'reg.line',
+          cor.coef = TRUE,
+          cor.coef.coord = c(0.993,0.90)) +
+  #stat_regline_equation(label.y = 0.99) +
+  stat_regline_equation(label.x = 0.993, label.y = 0.85, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) +
+  labs(x = "Heart slowing ratio 'Stimulus' to 'S+1' for correction rejections", y = "Near-threshold hit rate")
+
+# Correlate heart slowing across ALL trials and hit rate ------------------
+
+data$ratio_T3_T2 <- data$RR_int_plus1/data$RR_int_zero_stimulus
+
+ratio_T3_T2_mean <- aggregate(ratio_T3_T2 ~ ID, subset(data, resp_filter == 1 & HR_larger_FAR_filter == 1 & trial_type != 'FA'), FUN=mean)
+
+HR_test <- aggregate(resp1 ~ ID, subset(data, resp_filter == 1 & HR_larger_FAR_filter == 1 & stim_type == 1), FUN=mean)
+
+ratio_T3_T2_mean$HR <- HR_test$resp1
+
+ggscatter(ratio_T3_T2_mean, x = "ratio_T3_T2", y = "HR",
+          add = 'reg.line',
+          cor.coef = TRUE,
+          cor.coef.coord = c(1,0.9)) +
+  #stat_regline_equation(label.y = 0.99) +
+  stat_regline_equation(label.x = 1, label.y = 0.85, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) +
+  labs(x = "Heart slowing ratio 'Stimulus' to 'S+1' for all trials", y = "Near-threshold hit rate")
+
+
+# Heart slowing between conditions ----------------------------------------
+
+library(rstatix)
+library(cowplot)
+library(afex)
+library(tidyverse)
+library(ggpubr)
+
+
+# Heart slowing in near-threshold trials at "S+1" -------------------------
+
+data$ratio_T3_T2 <- data$RR_int_plus1/data$RR_int_zero_stimulus
+data$ratio_T4_T2 <- data$RR_int_plus2/data$RR_int_zero_stimulus
+
+ratio_T3_T2 <- aggregate(ratio_T3_T2 ~ ID*trial_type*resp2, subset(data, resp_filter == 1 & HR_larger_FAR_filter == 1 & stim_type == 1), FUN=mean)
+
+ratio_T3_T2$conf <- ifelse(ratio_T3_T2$resp2, 'conf', 'unconf')
+
+ratio_T3_T2$cond <- paste(ratio_T3_T2$trial_type, '_', ratio_T3_T2$conf, sep = '')
+
+ratio_T3_T2$cond <- str_remove(ratio_T3_T2$cond, 'near_')
+
+ratio_T3_T2$cond <- factor(ratio_T3_T2$cond, levels = c('miss_conf','miss_unconf','hit_unconf','hit_conf'))
+
+fit_all <- aov_ez("ID","ratio_T3_T2", ratio_T3_T2, within=c("trial_type", "conf"))
+fit_all # to see corrected degrees of freedom 
+summary(fit_all) # see epsilon values
+
+# Issue: 2 participants w/o CR_unconf (15 & 37)
+stat_test_ratio_T3_T2 = ratio_T3_T2 %>%
+  t_test(ratio_T3_T2 ~ cond, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE) %>% 
+  add_xy_position(step.increase=0.3)
+
+stat_test_ratio_T3_T2$y.position[stat_test_ratio_T3_T2$p.adj.signif != 'ns']
+stat_test_ratio_T3_T2$y.position[stat_test_ratio_T3_T2$p.adj.signif != 'ns'] <- seq(1.07,1.11,0.01)
+
+# Add systole length filter -----------------------------------------------
+
+tmp_mean_sys_t_S0 <- aggregate(systole_len_S0 ~ ID, data, FUN=mean)
+tmp_mean_sys_t_S1 <- aggregate(systole_len_S1 ~ ID, data, FUN=mean)
+
+tmp_sd_sys_t_S0 <- aggregate(systole_len_S0 ~ ID, data, FUN=sd)
+tmp_sd_sys_t_S1 <- aggregate(systole_len_S1 ~ ID, data, FUN=sd)
+
+data$mean_sys_t_S0 <- NA
+data$mean_sys_t_S1 <- NA
+
+data$sd_sys_t_S0 <- NA
+data$sd_sys_t_S1 <- NA
+
+for (i in unique(data$ID)) {
+  
+  data$mean_sys_t_S0[data$ID == i] <- tmp_mean_sys_t_S0$systole_len_S0[tmp_mean_sys_t_S0$ID == i]
+  data$mean_sys_t_S1[data$ID == i] <- tmp_mean_sys_t_S1$systole_len_S1[tmp_mean_sys_t_S1$ID == i]
+  
+  data$sd_sys_t_S0[data$ID == i] <- tmp_sd_sys_t_S0$systole_len_S0[tmp_sd_sys_t_S0$ID == i]
+  data$sd_sys_t_S1[data$ID == i] <- tmp_sd_sys_t_S1$systole_len_S1[tmp_sd_sys_t_S1$ID == i]
+}
+
+#factor_sd_margin = 4
+factor_sd_margin = 3
+
+data$sys_S0_outlier <- ifelse((data$systole_len_S0 < (data$mean_sys_t_S0-(factor_sd_margin*data$sd_sys_t_S0))) | (data$systole_len_S0 > (data$mean_sys_t_S0+(factor_sd_margin*data$sd_sys_t_S0))),1,0)
+
+data$sys_S1_outlier <- ifelse((data$systole_len_S1 < (data$mean_sys_t_S1-(factor_sd_margin*data$sd_sys_t_S1))) | (data$systole_len_S1 > (data$mean_sys_t_S1+(factor_sd_margin*data$sd_sys_t_S1))),1,0)
+
+#boxplot(systole_len_S0 ~ ID, subset(data, sys_S0_outlier != 0 & ID != 6 & ID != 37))
+boxplot(systole_len_S0 ~ ID, subset(data, sys_S0_outlier != 1))
+
+boxplot(systole_len_S1 ~ ID, subset(data, sys_S1_outlier != 1))
+
+data$sys_outlier <- (data$sys_S0_outlier == 1 | data$sys_S1_outlier == 1)
+
+aggregate(sys_outlier ~ ID, data, FUN=sum)
+
+# Compare diastole and systole --------------------------------------------
+
+# Filter including systole outliers
+data_valid <- subset(data, resp_filter == 1 & HR_larger_FAR_filter == 1 & trial_type != 'FA' & ID != 6 & ID != 37)
+
+sum(data_valid$sys_outlier, na.rm = T) # check number of outliers
+sum(is.na(data_valid$sys_outlier)) # check number of failed t-wave detection
+
+# S1
+sum(data_valid$sys_S1_outlier, na.rm = T) # check number of outliers
+sum(is.na(data_valid$sys_S1_outlier)) # check number of failed t-wave detection
+
+
+# Filter out systole outliers
+data_valid <- subset(data, resp_filter == 1 & HR_larger_FAR_filter == 1 & trial_type != 'FA' & ID != 6 & ID != 37 & sys_outlier != 1)
+# Focus on S1
+data_valid <- subset(data, resp_filter == 1 & HR_larger_FAR_filter == 1 & trial_type != 'FA' & ID != 6 & ID != 37 & sys_S1_outlier != 1)
+
+boxplot(systole_len_S1 ~ ID, data_valid)
+
+# Calculate difference from IBI "Stimulus" to "S+1"
+data_valid$diff_systole_len_S0_S1 <- data_valid$systole_len_S1-data_valid$systole_len_S0
+data_valid$diff_diastole_len_S0_S1 <- data_valid$diastole_len_S1-data_valid$diastole_len_S0
+
+# Calculate means for systole, diastole, and difference between IBIs
+mean_systole_S1 <- aggregate(systole_len_S1 ~ ID, data_valid, FUN=mean)
+mean_diastole_S1 <- aggregate(diastole_len_S1 ~ ID, data_valid, FUN=mean)
+
+mean(mean_systole_S1$systole_len_S1)
+sd(mean_systole_S1$systole_len_S1)
+
+mean(mean_diastole_S1$diastole_len_S1)
+sd(mean_diastole_S1$diastole_len_S1)
+
+mean_systole_S0 <- aggregate(systole_len_S0 ~ ID*trial_type, data_valid, FUN=mean)
+mean_systole_S1 <- aggregate(systole_len_S1 ~ ID*trial_type, data_valid, FUN=mean)
+
+mean_diastole_S0 <- aggregate(diastole_len_S0 ~ ID*trial_type, data_valid, FUN=mean)
+mean_diastole_S1 <- aggregate(diastole_len_S1 ~ ID*trial_type, data_valid, FUN=mean)
+
+mean_diff_systole_len_S0_S1 <- aggregate(diff_systole_len_S0_S1 ~ ID*trial_type, data_valid, FUN=mean)
+mean_diff_diastole_len_S0_S1 <- aggregate(diff_diastole_len_S0_S1 ~ ID*trial_type, data_valid, FUN=mean)
+
+# t-test for difference between IBIs within each condition
+ttest_diff_sys_CR <- t.test(mean_diff_systole_len_S0_S1$diff_systole_len_S0_S1[mean_diff_systole_len_S0_S1$trial_type == 'CR'])
+ttest_diff_sys_miss <- t.test(mean_diff_systole_len_S0_S1$diff_systole_len_S0_S1[mean_diff_systole_len_S0_S1$trial_type == 'near_miss'])
+ttest_diff_sys_hit <- t.test(mean_diff_systole_len_S0_S1$diff_systole_len_S0_S1[mean_diff_systole_len_S0_S1$trial_type == 'near_hit'])# %>% t_test(diff_systole_len_S0_S1 ~ trial_type, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE)
+
+ttest_diff_dias_CR <- t.test(mean_diff_diastole_len_S0_S1$diff_diastole_len_S0_S1[mean_diff_diastole_len_S0_S1$trial_type == 'CR'])
+ttest_diff_dias_miss <- t.test(mean_diff_diastole_len_S0_S1$diff_diastole_len_S0_S1[mean_diff_diastole_len_S0_S1$trial_type == 'near_miss'])
+ttest_diff_dias_hit <- t.test(mean_diff_diastole_len_S0_S1$diff_diastole_len_S0_S1[mean_diff_diastole_len_S0_S1$trial_type == 'near_hit'])
+
+# Collect p-values for FDR-correction
+p_diff <- c(ttest_diff_sys_CR$p.value,
+            ttest_diff_sys_miss$p.value,
+            ttest_diff_sys_hit$p.value,
+            ttest_diff_dias_CR$p.value,
+            ttest_diff_dias_miss$p.value,
+            ttest_diff_dias_hit$p.value)
+
+p.adjust(p_diff,'fdr')<0.05
+
+# Tricky since we never tested differences between intervals between conditions 
+par(mfrow=c(1,2))
+boxplot(diff_systole_len_S0_S1 ~ trial_type, mean_diff_systole_len_S0_S1)
+boxplot(diff_diastole_len_S0_S1 ~ trial_type, mean_diff_diastole_len_S0_S1)
+
+# Only systole and diastole by trial type during "S+1"
+par(mfrow=c(1,2))
+min(mean_systole_S1$systole_len_S1)
+max(mean_diastole_S1$diastole_len_S1)
+boxplot(systole_len_S1 ~ trial_type, mean_systole_S1, ylim = c(0.25,0.75))
+boxplot(diastole_len_S1 ~ trial_type, mean_diastole_S1, ylim = c(0.25,0.75))
+
+ttest_sys_S1 <- mean_systole_S1 %>% t_test(systole_len_S1 ~ trial_type, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE)
+ttest_dias_S1 <- mean_diastole_S1 %>% t_test(diastole_len_S1 ~ trial_type, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE)
+
+p.adjust(c(ttest_sys_S1$p,ttest_dias_S1$p),'fdr')<0.05
+
+p.adjust(c(p_diff,ttest_sys_S1$p,ttest_dias_S1$p),'fdr')<0.05
 
 # Interbeat intervals confident/unconfident misses/hits -------------------
 # (Confidence x awareness effect)

@@ -3,7 +3,7 @@
 ###########################################################################
 
 # Author:         Martin Grund
-# Last update:    February 11, 2021
+# Last update:    August 6, 2021
 
 
 # Settings ---------------------------------------------------------------
@@ -17,7 +17,7 @@ library(dplyr)
 library(rstatix)
 library(magrittr)
 library(circular)
-library("ggpubr")
+library(ggpubr)
 
 # Create colormap
 # http://colorbrewer2.org/#type=qualitative&scheme=Set3&n=4
@@ -29,14 +29,15 @@ colmap <- c(rgb(141,211,199, maxColorValue=255),
 
 # Load data ---------------------------------------------------------------
 
-data_stims = readRDS(paste(data_dir, "resp_data_stims_martin_20210208.Rds", sep="/"))
+data_stims = readRDS(paste(data_dir, "resp_data_stims_martin_20210622.Rds", sep="/")) # Locked to inspiration and expiration
 
 ecg_data <- read.csv2(paste(data_dir, 'ecgdata_all.csv', sep = '/'))
 
 
 # Filter respiratory data -------------------------------------------------
 
-data_stims_valid <- subset(data_stims, resp_filter == 1 & HR_larger_FAR_filter == 1 & resp_cycle_filter == 1)
+data_stims_valid <- subset(data_stims, resp_filter == 1 & HR_larger_FAR_filter == 1 & resp_cycle_exhale_filter == 1)
+data_stims_valid$stim_degree <- data_stims_valid$stim_degree_exhale
 
 
 # Match respiratory with ECG data -----------------------------------------------------
@@ -144,3 +145,64 @@ ggplot(delta_phase_cpl_mean,aes(x=trial_type, y=PLV)) +
   ggtitle("Cardiac and respiratory coupling") +
   scale_x_discrete(labels = c('CR', 'Miss', 'Hit')) +
   scale_fill_manual(values=colmap[c(1,3,4)])
+
+# IBI across respiration cycle --------------------------------------------
+
+# Distance of stimulus onset to previous expiration onset
+resp_data_valid$dist=NaN
+
+# 4 x 1-s interval 0-4 s
+intervals <- seq(0,4,1)
+# 4 x 90° interval 0-360°
+intervals <- seq(0,360,90)
+intervals <- seq(0,360,45)
+
+for (i in 1:(length(intervals)-1)) {
+  print(i)
+  print(intervals[i])
+  print(intervals[i+1])
+  #data_stims$dist[data_stims$diff2inhale_onset>=intervals[i] & data_stims$diff2inhale_onset<intervals[i+1]] <- i
+  #data_stims$dist[data_stims$diff2exhale_onset>=intervals[i] & data_stims$diff2exhale_onset<intervals[i+1]] <- i
+  resp_data_valid$dist[resp_data_valid$stim_degree>=intervals[i] & resp_data_valid$stim_degree<intervals[i+1]] <- i
+}
+
+
+# Plot IBI across respiration cycle ---------------------------------------
+
+# Create labels based on intervals
+label_list <- paste(as.character(head(intervals,-1)*1000),as.character(intervals[-1]*1000),sep = "\n-")
+label_list <- paste(as.character(head(intervals,-1)),'\n-',as.character(intervals[-1]),'°',sep = '')
+names(label_list) <- 1:(length(intervals)-1)
+
+mean_IBI <- aggregate(RR_int_zero_stimulus ~ ID*dist, resp_data_valid, FUN='sd')
+
+mean_IBI$dist <- as.factor(mean_IBI$dist)
+
+mean_IBI_base <- mean_IBI
+for (i in unique(mean_IBI_base$ID)) {
+  mean_IBI_base$RR_int_zero_stimulus[mean_IBI_base$ID == i] <- mean_IBI_base$RR_int_zero_stimulus[mean_IBI_base$ID == i] - mean_IBI_base$RR_int_zero_stimulus[mean_IBI_base$ID == i & mean_IBI_base$dist == 1]
+}
+
+stat_test_mean_IBI <- mean_IBI_base %>%
+  t_test(RR_int_zero_stimulus ~ dist, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE) %>% 
+  add_xy_position(step.increase=0.3)
+
+# Plot number of false alarms
+mean_IBI_base %>%
+  ggplot(aes(y=RR_int_zero_stimulus*1000, x=dist)) + 
+  geom_boxplot(fill = '#e78ac3') +
+  scale_x_discrete(labels=label_list) +
+  ggtitle("IBI across respiration cycle") +
+  ggtitle("IBI variance across respiration cycle") +
+  xlab("Respiration phase") + 
+  #ylab('delta IBI in ms to 0-45°') +
+  ylab('delta SD in ms to 0-45°') +
+  theme_cowplot()
+  #stat_pvalue_manual(stat_test_mean_IBI, label = "p.adj", tip.length = 0.01, hide.ns=T)
+
+
+library("afex")
+
+fit_all <- aov_ez("ID","RR_int_zero_stimulus", mean_IBI, within=c("dist"))
+fit_all # to see corrected degrees of freedom 
+summary(fit_all) # see epsilon values

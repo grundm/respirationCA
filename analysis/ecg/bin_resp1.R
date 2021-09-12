@@ -1,7 +1,7 @@
 # respirationCA - Bin hit rates relative to R peak ------------------------
 
 # Author:         Martin Grund, Esra Al
-# Last update:    February 17, 2022
+# Last update:    February 17, 2021
 
 # Trials are assigned to bins depending on the stimulus onset relative to
 # the previous R-peak. Hit rates in near-threshold trials are averaged for 
@@ -188,6 +188,8 @@ output_anova = ezANOVA(data = HR,       # dataframe containing all relevant vari
 
 print(output_anova)
 
+library(aov_ez)
+
 # Perform test with corrected degrees of freedom
 fit_all <- aov_ez("ID","resp1", HR, within=c("dist", "resp2"))
 fit_all # to see corrected degrees of freedom 
@@ -208,6 +210,94 @@ output_anova$ANOVA$F[2]
 output_anova$`Sphericity Corrections`$`p[GG]`
 # F(2.74,96.01) = 7.01, p = 0.0004
 
+
+# Plot confidence across cardiac cycle DIFFERENTLY ------------------------
+
+HR=aggregate(resp2 ~ ID*dist*resp1, data_select, FUN=mean)
+
+HR=aggregate(resp2 ~ dist*resp1, data_select, FUN=numel)
+
+# Frequency of hits/misses -> mean(resp1)/1-mean(resp1)
+# Frequency of confident/unconfident hits/misses as part of hit/miss frequency
+
+# Number of confident/unconfident misses/hits at each cardiac cycle interval
+library(dplyr)
+count_conf_cc <- data_select %>% count(ID, dist, resp1, resp2, name="n")
+
+# Sum up number of hits and misses at each interval
+trial_num_cc <- aggregate(n ~ ID*dist, count_conf_cc, FUN=sum)
+
+# Calculate frequency (%) of un/confident misses/hits at each interval
+count_conf_cc$n_rel <- numeric(nrow(count_conf_cc))
+
+# Loop rows and select corresponding sum of trials
+for (i in 1:nrow(count_conf_cc)) {
+  count_conf_cc$n_rel[i] <- count_conf_cc$n[i]/trial_num_cc$n[trial_num_cc$ID == count_conf_cc$ID[i] 
+                                                            & trial_num_cc$dist == count_conf_cc$dist[i] ]
+}
+
+# Plot means
+mean_conf_freq <- aggregate(n_rel ~ dist*resp1*resp2, count_conf_cc, FUN=mean)
+
+# Check sums of mean % for each interval
+#for (i in unique(mean_conf_freq$dist)) { print(sum(mean_conf_freq$n_rel[mean_conf_freq$dist==i]))}
+#aggregate(n_rel ~ ID*dist, count_conf_cc, FUN=sum)
+aggregate(n_rel ~ dist, mean_conf_freq, FUN=sum)
+
+mean_conf_freq$dist <- factor(mean_conf_freq$dist)
+mean_conf_freq$resp1 <- factor(mean_conf_freq$resp1)
+mean_conf_freq$resp2 <- factor(mean_conf_freq$resp2)
+
+levels(mean_conf_freq$resp1) <- c('miss', 'hit')
+levels(mean_conf_freq$resp2) <- c('unconfident', 'confident')
+
+#mean_conf_freq$resp2 <- factor(mean_conf_freq$resp2, levels = c('confident','unconfident'))
+
+# Create labels based on intervals
+label_list <- paste(as.character(head(intervals,-1)*1000),as.character(intervals[-1]*1000),sep = "\n-")
+names(label_list) <- 1:(length(intervals)-1)
+
+levels(mean_conf_freq$dist) <- label_list
+
+#ggplot(subset(mean_conf_freq, mean_conf_freq$resp1==1), aes(x=dist, y=n_rel)) + # col=resp2
+#ggplot(mean_conf_freq, aes(x=dist, y=n_rel, group=interaction(dist,resp1))) + # col=resp2
+
+mean_conf_freq$n_rel_pos <- NA
+mean_conf_freq$n_rel_pos[mean_conf_freq$resp2=='unconfident'] <- mean_conf_freq$n_rel[mean_conf_freq$resp2=='unconfident'] + mean_conf_freq$n_rel[mean_conf_freq$resp2=='confident']
+mean_conf_freq$n_rel_pos[mean_conf_freq$resp2=='confident'] <- mean_conf_freq$n_rel[mean_conf_freq$resp2=='confident']
+
+ggplot(mean_conf_freq[order(mean_conf_freq$resp2, decreasing = T), ], aes(x=dist, y=n_rel*100, group=resp1)) + # col=resp2
+  geom_col(
+    aes(fill = resp2)) +
+  facet_wrap(~resp1) + 
+  geom_text(aes(label=round(n_rel*100)), position = position_stack(vjust = .9)) +
+  ylab("Mean probability") +
+  xlab('Time since R-peak to stimulus onset in ms') +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+# T-tests for confident hits across bins
+stat_test_hit_conf = subset(count_conf_cc, resp1 == 1 & resp2 == 1 & ID != 6) %>% # ID06: no data in last block #4
+  t_test(n_rel ~ dist, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE)
+
+# T-tests for unconfident hits across bins  
+stat_test_hit_unconf = subset(count_conf_cc, resp1 == 1 & resp2 == 0 & ID != 17) %>% # ID17: no data in last block #4
+  t_test(n_rel ~ dist, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE)
+
+p.adjust(c(stat_test_hit_conf$p, stat_test_hit_unconf$p),'fdr') < 0.05
+
+
+# T-tests for unconfident misses across bins
+stat_test = subset(count_conf_cc, resp1 == 0 & resp2 == 0 & ID != 33) %>% # ID33: no data in first block #1
+  t_test(n_rel ~ dist, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE)
+
+# T-tests for confident misses across bins
+stat_test = subset(count_conf_cc, resp1 == 0 & resp2 == 1) %>%
+  t_test(n_rel ~ dist, paired=TRUE, p.adjust.method = "fdr", detailed=TRUE)
+
+# Check which participants is missing
+# unique(count_conf_cc$ID)
+# count_conf_cc$ID[count_conf_cc$dist==1 & count_conf_cc$resp1==0 & count_conf_cc$resp2==0]
 
 # Confidence across the cardiac cycle -------------------------------------
 

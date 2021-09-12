@@ -4,7 +4,7 @@
 %
 %
 % Author:           Martin Grund
-% Last update:      February 8, 2021
+% Last update:      June 22, 2021
 
 %% Settings
 
@@ -34,7 +34,7 @@ resp_data = load_save_resp_data(data_dir);
 
 %% Select and trim respiratory channel
 
-resp_data_c = cut_resp_data(resp_data);
+resp_data_c = cut_resp_data(resp_data,'Resp');
 % 52s
 
 %save([data_dir '/resp_data_c.mat'], 'resp_data_c', '-v7.3');
@@ -52,7 +52,7 @@ resp_data_c = cut_resp_data(resp_data);
 [stim_data] = locate_trigger_resp(resp_cycles);
 
 % Write out data
-csvwrite([data_dir '/resp_stim_circ_20200208_smoothed.csv'],stim_data);
+csvwrite([data_dir '/resp_stim_circ_20210622.csv'],stim_data);
 
 
 %%
@@ -96,17 +96,19 @@ for i = 8:8
         zsmoothresp = zscore(smoothresp); % z-score
 
         figure('Name',['ID' ID_tmp ' #' num2str(j) ': raw (black), w/o outlier (blue), and smoothed (red)']); 
-        %plot(raw_data,'k-'); hold on; plot(resp,'b-'); 
-        plot(smoothresp,'r-')
+        plot(raw_data,'k-'); hold on; plot(resp,'b-'); 
+        plot(smoothresp,'r-')        
 
-        figure('Name',['ID' ID_tmp ' #' num2str(j) ': Inhale onset detection (smoothed & zscored)']); 
+        figure('Name',['ID' ID_tmp ' #' num2str(j) ': Exhale onset detection (smoothed & zscored)']); 
         plot(-zsmoothresp,'r-');
         %findpeaks(-zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',0.5)
         findpeaks(-zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',iqr(zsmoothresp)*0.9)
 
-        % figure('Name',['ID' ID_tmp ' #' num2str(j) ': Inhale onset detection (raw data)']); 
-        % plot(-raw_data,'r-');
-        % findpeaks(-raw_data,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',iqr(raw_data)*0.9)
+        figure('Name',['ID' ID_tmp ' #' num2str(j) ': Inhale onset detection (smoothed & zscored)']); 
+        plot(zsmoothresp,'r-');
+        %findpeaks(zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',0.5)
+        findpeaks(zsmoothresp,'minpeakdistance',min_peak_dist*srate_tmp,'minpeakprominence',iqr(zsmoothresp)*0.9)
+        
 
         %vline(resp_cycles(i).trigger(j).loc,'k'); % Trigger
 
@@ -128,7 +130,7 @@ for i = 25:41
         
         k = k + 1;
         subplot(8,12,k)        
-        resp_cycle_t = diff(resp_cycles(i).troughs(j).loc)./resp_cycles(i).srate(j);
+        resp_cycle_t = diff(resp_cycles(i).exhale_onsets(j).loc)./resp_cycles(i).srate(j);
         boxplot(resp_cycle_t);
         %boxplot(resp_cycle_t(resp_cycle_t < (median(resp_cycle_t)*3)));
         title(['ID' resp_cycles(i).ID ' #' num2str(j) '']);

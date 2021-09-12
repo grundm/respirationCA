@@ -16,12 +16,12 @@ library(circular)
 
 # Load data ---------------------------------------------------------------
 
-data_stims = readRDS(paste(data_dir, "resp_data_stims_martin_20210208.Rds", sep="/"))
-
+data_stims = readRDS(paste(data_dir, "resp_data_stims_martin_20210622.Rds", sep="/"))
 
 # Select valid data -------------------------------------------------------
 
-data_stims_valid <- subset(data_stims, resp_filter == 1 & HR_larger_FAR_filter == 1 & resp_cycle_filter == 1)
+data_stims_valid <- subset(data_stims, resp_filter == 1 & HR_larger_FAR_filter == 1 & resp_cycle_exhale_filter == 1)
+data_stims_valid$stim_degree <- data_stims_valid$stim_degree_exhale
 
 
 # Difference to block mean ------------------------------------------------

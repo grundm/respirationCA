@@ -53,6 +53,12 @@ sum(dt$gender[dt$block == 1 & dt$trial == 1]=='w')
 mean(dt$age[dt$block == 1 & dt$trial == 1])
 range(dt$age[dt$block == 1 & dt$trial == 1])
 
+# Handedness
+proband <- read.table(paste(data_dir, '/respirationCA_probands.txt', sep = ''), header = TRUE, sep = "|", fill = TRUE, stringsAsFactors = FALSE)
+
+sum(is.na(proband$LQ))
+
+mean(proband$LQ, na.rm = T)
 
 # Number of trials --------------------------------------------------------
 
