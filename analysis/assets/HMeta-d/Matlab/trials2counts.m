@@ -1,4 +1,4 @@
-function vector = trials2counts(stimID,response,rating,nRatings,cellpad)
+function [nR_S1 nR_S2] = trials2counts(stimID,response,rating,nRatings,cellpad)
 
 % [nR_S1 nR_S2] = trials2counts(stimID,response,rating,nRatings,cellpad)
 %
@@ -63,8 +63,5 @@ if cellpad
     
     nR_S1 = nR_S1 + padFactor;
     nR_S2 = nR_S2 + padFactor;
-end
 
-    vector = [nR_S1 nR_S2];
-    
 end
